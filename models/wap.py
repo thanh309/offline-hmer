@@ -364,7 +364,7 @@ def main():
     vocab_size = 10
     model = WAP(vocab_size=vocab_size)
 
-    example_image = torch.randn(1, 3, 224, 224)  # Example image
+    example_image = torch.randn(1, 3, 69, 420)  # Example image
     predictions, alphas = model.recognize(example_image)
 
     print(f'Predicted LaTeX sequence: {predictions}')

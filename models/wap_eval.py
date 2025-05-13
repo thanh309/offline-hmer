@@ -2,15 +2,17 @@ import os
 import torch
 import pandas as pd
 from PIL import Image
-from torchvision import transforms
+import albumentations as A
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import json
 
-from wap_dataloader import Vocabulary
+from wap_dataloader import Vocabulary, process_img
 torch.serialization.add_safe_globals([Vocabulary])
+
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
 # import model
 from wap import WAP
@@ -71,15 +73,15 @@ def recognize_single_image(model: WAP, image_path, vocab, device, max_length=150
     Recognize handwritten mathematical expression from a single image
     '''
     # prepare image
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transform = A.Compose([
+        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        A.pytorch.ToTensorV2()
     ])
     
     # load and transform image
     image = Image.open(image_path).convert('RGB')
-    image_tensor = transform(image).unsqueeze(0).to(device)
+    image_processed = Image.fromarray(process_img(image_path)).convert('RGB')
+    image_tensor = transform(image=image_processed)['image'].unsqueeze(0).to(device)
     
 
     model.eval()
@@ -155,18 +157,18 @@ def evaluate_model(model: WAP, test_folder, label_file, vocab, device, max_lengt
     err3 = 0
     total = 0
 
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transform = A.Compose([
+        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        A.pytorch.ToTensorV2()
     ])
     
     results = {}
     
     for image_path, gt_latex in tqdm(annotations.items()):
         gt_latex: str = gt_latex
-        image = Image.open(os.path.join(test_folder, image_path)).convert('RGB')
-        image_tensor = transform(image).unsqueeze(0).to(device)
+        # image = Image.open(os.path.join(test_folder, image_path)).convert('RGB')
+        processed_img = process_img(os.path.join(test_folder, image_path))
+        image_tensor = transform(image=processed_img)['image'].unsqueeze(0).to(device)
         
         with torch.no_grad():
             predictions, _ = model.recognize(
@@ -221,55 +223,16 @@ def evaluate_model(model: WAP, test_folder, label_file, vocab, device, max_lengt
     
     return [exprate, exprate_leq1, exprate_leq2, exprate_leq3], results
 
-# def main():
-#     parser = argparse.ArgumentParser(description='Evaluate Watch, Attend and Parse model')
-#     parser.add_argument('--checkpoint', type=str, required=True, help='path to model checkpoint')
-#     parser.add_argument('--mode', type=str, choices=['single', 'evaluate'], required=True, 
-#                       help='recognition mode: single image or evaluate on test set')
-#     parser.add_argument('--image', type=str, help='path to single image (required for single mode)')
-#     parser.add_argument('--test_folder', type=str, help='folder containing test images (required for evaluate mode)')
-#     parser.add_argument('--label_file', type=str, help='JSON file with test annotations (required for evaluate mode)')
-#     parser.add_argument('--visualize', action='store_true', help='visualize attention maps (only for single mode)')
-#     args = parser.parse_args()
-    
-#     # Set device
-#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#     print(f'Using device: {device}')
-    
-#     # Load model and vocabulary
-#     model, vocab = load_checkpoint(args.checkpoint, device)
-    
-#     if args.mode == 'single':
-#         # Check if image path is provided
-#         if args.image is None:
-#             raise ValueError('Image path is required for single mode')
-        
-#         # Recognize single image
-#         latex = recognize_single_image(model, args.image, vocab, device, visualize_attention=args.visualize)
-        
-#         print(f'Recognized LaTeX: {latex}')
-        
-#     elif args.mode == 'evaluate':
-#         # Check if test folder and annotation file are provided
-#         if args.test_folder is None or args.label_file is None:
-#             raise ValueError('Test folder and annotation file are required for evaluate mode')
-        
-#         # Evaluate model
-#         accuracy, results = evaluate_model(model, args.test_folder, args.label_file, vocab, device)
-        
-#         print(f'Accuracy: {accuracy:.4f}')
-#         print(f'Results saved to evaluation_results.json')
-
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
     checkpoint_path = 'checkpoints/wap_best_01.pth'
-    mode = 'evaluate' # 'single' or 'evaluate'
+    mode = 'single' # 'single' or 'evaluate'
 
     # for single mode
     image_path = 'resources/CROHME/train/img/65_alfonso.bmp'
-    visualize = False
+    visualize = True
 
     # for evaluation mode
     test_folder = 'resources/CROHME/2019/img'

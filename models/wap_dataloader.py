@@ -1,18 +1,52 @@
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
-from torchvision import transforms
+import albumentations as A
 from PIL import Image
 import pandas as pd
+import cv2
+import numpy as np
+
+
+def process_img(filename):
+    """
+    Load, resize, apply centered padding, binarize, ensures background is black
+    """
+
+    inp_h = 128
+    inp_w = 128 * 8
+
+    image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+
+    h, w = image.shape
+    new_w = int((inp_h / h) * w)
+
+    if new_w > inp_w:
+        resized_img = cv2.resize(image, (inp_w, inp_h), interpolation=cv2.INTER_AREA)
+    else:
+        resized_img = cv2.resize(image, (new_w, inp_h), interpolation=cv2.INTER_AREA)
+        padded_img = np.ones((inp_h, inp_w), dtype=np.uint8) * 255  # white background
+        x_offset = (inp_w - new_w) // 2
+        padded_img[:, x_offset:x_offset + new_w] = resized_img
+        resized_img = padded_img
+
+    _, binary_img = cv2.threshold(resized_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    white = np.sum(binary_img == 255)
+    black = np.sum(binary_img == 0)
+    if white > black:
+        binary_img = 255 - binary_img
+
+    return binary_img
 
 
 class HMERDataset(Dataset):
-    """
+    '''
     Dataset for HMER
-    """
+    '''
 
     def __init__(self, data_folder, label_file, vocab, transform=None, max_length=150):
-        """
+        '''
         Initialize the dataset
 
         data_folder: folder containing images
@@ -24,7 +58,7 @@ class HMERDataset(Dataset):
         transform: image transformations
 
         max_length: maximum sequence length
-        """
+        '''
         self.data_folder = data_folder
         self.max_length = max_length
         self.vocab = vocab
@@ -38,13 +72,11 @@ class HMERDataset(Dataset):
 
         # default transforms
         if transform is None:
-            self.transform = transforms.Compose([
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transform = A.Compose([
+                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                A.pytorch.ToTensorV2()
             ])
-        else:
-            self.transform = transform
+        self.transform = transform
 
     def __len__(self):
         return len(self.image_paths)
@@ -55,22 +87,17 @@ class HMERDataset(Dataset):
         latex = self.annotations[image_path]
 
         # load and transform image
-        image = Image.open(os.path.join(self.data_folder, image_path)).convert('RGB')
-        if self.transform:
-            image = self.transform(image)
+        # image = Image.open(os.path.join(self.data_folder, image_path)).convert('RGB')
+        processed_img = process_img(os.path.join(self.data_folder, image_path))
+        image = np.array(Image.fromarray(processed_img).convert('RGB'))
+
+        image = self.transform(image=image)['image']
 
         # tokenize latex
         tokens = self.vocab.tokenize(latex)
 
         # add start and end tokens
         tokens = [self.vocab.start_token] + tokens + [self.vocab.end_token]
-
-        # # Pad to max length
-        # if len(tokens) < self.max_length:
-        #     tokens = tokens + [self.vocab.pad_token] * \
-        #         (self.max_length - len(tokens))
-        # else:
-        #     tokens = tokens[:self.max_length]
 
         if len(tokens) > self.max_length:
             tokens = tokens[:self.max_length]
@@ -87,9 +114,9 @@ class HMERDataset(Dataset):
 
 
 class Vocabulary:
-    """
+    '''
     Vocabulary class for tokenization
-    """
+    '''
 
     def __init__(self):
         self.word2idx = {}
@@ -117,9 +144,9 @@ class Vocabulary:
         return len(self.word2idx)
 
     def tokenize(self, latex):
-        """
+        '''
         Tokenize latex string into indices. This assumes the tokens are separated by space.
-        """
+        '''
         tokens = []
 
         for char in latex.split():
@@ -148,7 +175,7 @@ class Vocabulary:
 
 
 def main() -> None:
-    # test dataset
+    # for testing dataset only, do not copy
 
     batch_size = 32
 

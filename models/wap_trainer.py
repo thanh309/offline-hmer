@@ -3,13 +3,39 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader, ConcatDataset, SubsetRandomSampler
 from torch.nn.utils.rnn import pack_padded_sequence
 
 # Import model and data loader from previous files
 from wap import WAP
 from wap_dataloader import HMERDataset, Vocabulary
 
+
+import albumentations as A
+import cv2
+import random
+
+class RandomMorphology(A.ImageOnlyTransform):
+    def __init__(self, p=0.5, kernel_size=3):
+        super(RandomMorphology, self).__init__(p)
+        self.kernel_size = kernel_size
+
+    def apply(self, img, **params):
+        op = random.choice(['erode', 'dilate'])
+        kernel = np.ones((self.kernel_size, self.kernel_size), np.uint8)
+        if op == 'erode':
+            return cv2.erode(img, kernel, iterations=1)
+        else:
+            return cv2.dilate(img, kernel, iterations=1)
+
+train_transforms = A.Compose([
+    A.Rotate(limit=3, p=0.5, border_mode=cv2.BORDER_REPLICATE),
+    A.ElasticTransform(alpha=50, sigma=5, p=0.3),
+    A.Perspective(scale=(0.03, 0.05), p=0.3, keep_size=True),
+    RandomMorphology(p=0.3, kernel_size=1),
+    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    A.pytorch.ToTensorV2()
+])
 
 def train_epoch(model, train_loader, criterion, optimizer, device, grad_clip=5.0, lbd=0.5, print_freq=10):
     """
@@ -101,7 +127,7 @@ def main():
 
     seed = 42
     checkpoints_dir = 'checkpoints'
-    batch_size = 64
+    batch_size = 32
 
     embed_size = 256
     encoder_dim = 256
@@ -132,13 +158,15 @@ def main():
     train_dataset_1 = HMERDataset(
         data_folder=f'{dataset_dir}/train/img',
         label_file=f'{dataset_dir}/train/caption.txt',
-        vocab=vocab
+        vocab=vocab,
+        transform=train_transforms
     )
 
     train_dataset_2 = HMERDataset(
         data_folder=f'{dataset_dir}/2014/img',
         label_file=f'{dataset_dir}/2014/caption.txt',
-        vocab=vocab
+        vocab=vocab,
+        transform=train_transforms
     )
 
     train_dataset = ConcatDataset([train_dataset_1, train_dataset_2])
@@ -148,20 +176,25 @@ def main():
         vocab=vocab
     )
 
+    fractions = 0.05
+    assert 0 < fractions <= 1, 'invalid fractions'
+    sample_train = torch.randperm(len(train_dataset))[:int(len(train_dataset)*fractions)]
+    sample_val = torch.randperm(len(val_dataset))[:int(len(val_dataset)*fractions)]
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
         num_workers=4,
-        pin_memory=False
+        pin_memory=False,
+        sampler=SubsetRandomSampler(sample_train)
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        shuffle=False,
         num_workers=4,
-        pin_memory=False
+        pin_memory=False,
+        sampler=SubsetRandomSampler(sample_val)
     )
 
     # create model
@@ -225,8 +258,8 @@ def main():
                 'val_loss': val_loss,
                 'vocab': vocab
             }
-            torch.save(checkpoint, os.path.join(checkpoints_dir, 'wap_best.pth'))
-            print('model saved!')
+            # torch.save(checkpoint, os.path.join(checkpoints_dir, 'wap_best.pth'))
+            # print('model saved!')
 
     print('training completed!')
 
