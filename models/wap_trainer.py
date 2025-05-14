@@ -6,6 +6,8 @@ import numpy as np
 from torch.utils.data import DataLoader, ConcatDataset, SubsetRandomSampler
 from torch.nn.utils.rnn import pack_padded_sequence
 import time
+import wandb
+from datetime import datetime
 
 # Import model and data loader from previous files
 from wap import WAP
@@ -38,9 +40,9 @@ train_transforms = A.Compose([
 ])
 
 def train_epoch(model, train_loader, criterion, optimizer, device, grad_clip=5.0, lbd=0.5, print_freq=10):
-    """
+    '''
     Train the model for one epoch
-    """
+    '''
     model.train()
     losses = []
 
@@ -89,9 +91,9 @@ def train_epoch(model, train_loader, criterion, optimizer, device, grad_clip=5.0
     return sum(losses) / len(losses)
 
 def validate(model, val_loader, criterion, device, lbd=0.5):
-    """
+    '''
     Validate the model
-    """
+    '''
     model.eval()
     losses = []
 
@@ -138,7 +140,9 @@ def main():
     lbd = 0.5
 
     lr = 1e-4
-    epochs = 25
+    epochs = 100
+    data_fractions = 1
+    assert 0 < data_fractions <= 1, 'invalid data fractions'
 
 
     torch.manual_seed(seed)
@@ -185,10 +189,8 @@ def main():
         vocab=vocab
     )
 
-    fractions = 1
-    assert 0 < fractions <= 1, 'invalid fractions'
-    sample_train = torch.randperm(len(train_dataset))[:int(len(train_dataset)*fractions)]
-    sample_val = torch.randperm(len(val_dataset))[:int(len(val_dataset)*fractions)]
+    sample_train = torch.randperm(len(train_dataset))[:int(len(train_dataset)*data_fractions)]
+    sample_val = torch.randperm(len(val_dataset))[:int(len(val_dataset)*data_fractions)]
 
     train_loader = DataLoader(
         train_dataset,
@@ -222,18 +224,47 @@ def main():
     criterion = nn.CrossEntropyLoss().to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    # Learning rate scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    # learning rate scheduler
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    #     optimizer,
+    #     mode='min',
+    #     factor=0.5,
+    #     patience=3
+    # )
+
+    T_0 = 5
+    T_mult = 2
+
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer,
-        mode='min',
-        factor=0.5,
-        patience=3
+        T_0=T_0,
+        T_mult=T_mult
     )
+
+    run_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+    wandb.init(project='offline-hmer', name=run_name, config={
+        'seed': seed,
+        'batch_size': batch_size,
+        'embed_size': embed_size,
+        'encoder_dim': encoder_dim,
+        'decoder_dim': decoder_dim,
+        'attention_dim': attention_dim,
+        'dropout': dropout,
+        'grad_clip': grad_clip,
+        'lbd': lbd,
+        'lr': lr,
+        'epochs': epochs,
+        'data_fractions': data_fractions,
+        'T_0': T_0,
+        'T_mult': T_mult
+    })
 
     # training loop
     best_val_loss = float('inf')
 
     for epoch in range(epochs):
+        curr_lr = scheduler.get_last_lr()[0]
         print(f'Epoch {epoch+1:03}/{epochs:03}')
         t1 = time.time()
 
@@ -257,10 +288,18 @@ def main():
         )
 
         # update learning rate
-        scheduler.step(val_loss)
+        scheduler.step()
         t2 = time.time()
 
         print(f'train loss: {train_loss:.4f}, val loss: {val_loss:.4f}, time: {t2 - t1:.4f} seconds')
+
+        # log metrics to wandb
+        wandb.log({
+            'train_loss': train_loss,
+            'val_loss': val_loss,
+            'learning_rate':curr_lr,
+            'epoch': epoch
+        })
 
         # save checkpoint
         if val_loss < best_val_loss:
