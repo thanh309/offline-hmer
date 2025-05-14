@@ -159,7 +159,7 @@ def visualize_attention_maps(orig_image, alphas, latex_tokens, max_cols=4):
         axes[j].axis('off')
 
     plt.tight_layout()
-    plt.savefig('attention_maps.png', bbox_inches='tight', dpi=150)
+    plt.savefig('attention_maps_wap.png', bbox_inches='tight', dpi=150)
     plt.close()
 
 
@@ -238,7 +238,7 @@ def evaluate_model(model: WAP, test_folder, label_file, vocab, device, max_lengt
     exprate_leq3 = round((correct + err1 + err2 + err3) / total, 4)
     
     # Save results to file
-    with open('evaluation_results.json', 'w', encoding='utf-8') as f:
+    with open('evaluation_results_wap.json', 'w', encoding='utf-8') as f:
         json.dump({
             'accuracy': [exprate, exprate_leq1, exprate_leq2, exprate_leq3],
             'results': results
@@ -254,14 +254,12 @@ def main():
     mode = 'single' # 'single' or 'evaluate'
 
     # for single mode
-    # image_path = 'resources/CROHME/train/img/formulaire029-equation045.bmp'
-    # image_path = 'resources/CROHME/2019/img/ISICal19_1201_em_750.bmp'
-    image_path = 'resources/CROHME/2019/img/UN19_1007_em_101.bmp'
+    image_path = 'resources/CROHMEv2/test/img/UN_125_em_565.bmp'
     visualize = True
 
     # for evaluation mode
-    test_folder = 'resources/CROHME/2019/img'
-    label_file = 'resources/CROHME/2019/caption.txt'
+    test_folder = 'resources/CROHMEv2/test/img'
+    label_file = 'resources/CROHMEv2/test/caption.txt'
 
     # load model and vocabulary
     model, vocab = load_checkpoint(checkpoint_path, device)
@@ -281,7 +279,6 @@ def main():
         exprate, results = evaluate_model(model, test_folder, label_file, vocab, device)
         
         print(f'ExpRate: {exprate}')
-        print(f'Results saved to evaluation_results.json')
 
 if __name__ == '__main__':
     main()

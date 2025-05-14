@@ -122,8 +122,8 @@ def validate(model, val_loader, criterion, device, lbd=0.5):
 
 
 def main():
-    splits = ['2014', '2016', '2019', 'train']
-    dataset_dir = 'resources/CROHME'
+    splits = ['train', 'val', 'test']
+    dataset_dir = 'resources/CROHMEv2'
 
     seed = 1337
     checkpoints_dir = 'checkpoints'
@@ -155,24 +155,33 @@ def main():
     for split in splits:
         vocab.build_vocab(f'{dataset_dir}/{split}/caption.txt')
 
-    train_dataset_1 = HMERDataset(
+    # train_dataset_1 = HMERDataset(
+    #     data_folder=f'{dataset_dir}/train/img',
+    #     label_file=f'{dataset_dir}/train/caption.txt',
+    #     vocab=vocab,
+    #     transform=train_transforms
+    # )
+
+    # train_dataset_2 = HMERDataset(
+    #     data_folder=f'{dataset_dir}/2014/img',
+    #     label_file=f'{dataset_dir}/2014/caption.txt',
+    #     vocab=vocab,
+    #     transform=train_transforms
+    # )
+
+    # train_dataset = ConcatDataset([train_dataset_1, train_dataset_2])
+
+    train_dataset = HMERDataset(
         data_folder=f'{dataset_dir}/train/img',
         label_file=f'{dataset_dir}/train/caption.txt',
         vocab=vocab,
         transform=train_transforms
     )
 
-    train_dataset_2 = HMERDataset(
-        data_folder=f'{dataset_dir}/2014/img',
-        label_file=f'{dataset_dir}/2014/caption.txt',
-        vocab=vocab,
-        transform=train_transforms
-    )
 
-    train_dataset = ConcatDataset([train_dataset_1, train_dataset_2])
     val_dataset = HMERDataset(
-        data_folder=f'{dataset_dir}/2016/img',
-        label_file=f'{dataset_dir}/2016/caption.txt',
+        data_folder=f'{dataset_dir}/val/img',
+        label_file=f'{dataset_dir}/val/caption.txt',
         vocab=vocab
     )
 
@@ -186,7 +195,8 @@ def main():
         batch_size=batch_size,
         num_workers=4,
         pin_memory=True,
-        sampler=SubsetRandomSampler(sample_train)
+        sampler=SubsetRandomSampler(sample_train),
+        drop_last=True
     )
 
     val_loader = DataLoader(
@@ -194,7 +204,8 @@ def main():
         batch_size=batch_size,
         num_workers=4,
         pin_memory=True,
-        sampler=SubsetRandomSampler(sample_val)
+        sampler=SubsetRandomSampler(sample_val),
+        drop_last=True
     )
 
     # create model
