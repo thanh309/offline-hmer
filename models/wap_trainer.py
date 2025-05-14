@@ -5,6 +5,7 @@ import torch.optim as optim
 import numpy as np
 from torch.utils.data import DataLoader, ConcatDataset, SubsetRandomSampler
 from torch.nn.utils.rnn import pack_padded_sequence
+import time
 
 # Import model and data loader from previous files
 from wap import WAP
@@ -29,10 +30,9 @@ class RandomMorphology(A.ImageOnlyTransform):
             return cv2.dilate(img, kernel, iterations=1)
 
 train_transforms = A.Compose([
-    A.Rotate(limit=3, p=0.5, border_mode=cv2.BORDER_REPLICATE),
-    A.ElasticTransform(alpha=50, sigma=5, p=0.3),
-    A.Perspective(scale=(0.03, 0.05), p=0.3, keep_size=True),
-    RandomMorphology(p=0.3, kernel_size=1),
+    A.Rotate(limit=5, p=0.25, border_mode=cv2.BORDER_REPLICATE),
+    A.ElasticTransform(alpha=100, sigma=7, p=0.5, interpolation=cv2.INTER_CUBIC),
+    RandomMorphology(p=0.5, kernel_size=2),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     A.pytorch.ToTensorV2()
 ])
@@ -83,8 +83,8 @@ def train_epoch(model, train_loader, criterion, optimizer, device, grad_clip=5.0
         losses.append(loss.item())
 
         # print progress
-        if i % print_freq == 0:
-            print(f'Batch {i}/{len(train_loader)}, Loss: {loss.item():.4f}')
+        # if i % print_freq == 0:
+        #     print(f'Batch {i}/{len(train_loader)}, Loss: {loss.item():.4f}')
 
     return sum(losses) / len(losses)
 
@@ -125,7 +125,7 @@ def main():
     splits = ['2014', '2016', '2019', 'train']
     dataset_dir = 'resources/CROHME'
 
-    seed = 42
+    seed = 1337
     checkpoints_dir = 'checkpoints'
     batch_size = 32
 
@@ -137,8 +137,8 @@ def main():
     grad_clip = 5.0
     lbd = 0.5
 
-    lr = 5e-4
-    epochs = 50
+    lr = 1e-4
+    epochs = 25
 
 
     torch.manual_seed(seed)
@@ -176,7 +176,7 @@ def main():
         vocab=vocab
     )
 
-    fractions = 0.05
+    fractions = 1
     assert 0 < fractions <= 1, 'invalid fractions'
     sample_train = torch.randperm(len(train_dataset))[:int(len(train_dataset)*fractions)]
     sample_val = torch.randperm(len(val_dataset))[:int(len(val_dataset)*fractions)]
@@ -185,7 +185,7 @@ def main():
         train_dataset,
         batch_size=batch_size,
         num_workers=4,
-        pin_memory=False,
+        pin_memory=True,
         sampler=SubsetRandomSampler(sample_train)
     )
 
@@ -193,7 +193,7 @@ def main():
         val_dataset,
         batch_size=batch_size,
         num_workers=4,
-        pin_memory=False,
+        pin_memory=True,
         sampler=SubsetRandomSampler(sample_val)
     )
 
@@ -224,6 +224,7 @@ def main():
 
     for epoch in range(epochs):
         print(f'Epoch {epoch+1:03}/{epochs:03}')
+        t1 = time.time()
 
         train_loss = train_epoch(
             model=model,
@@ -232,7 +233,8 @@ def main():
             optimizer=optimizer,
             device=device,
             grad_clip=grad_clip,
-            lbd=lbd
+            lbd=lbd,
+            print_freq=1e6
         )
 
         val_loss = validate(
@@ -245,8 +247,9 @@ def main():
 
         # update learning rate
         scheduler.step(val_loss)
+        t2 = time.time()
 
-        print(f'train loss: {train_loss:.4f}, val loss: {val_loss:.4f}')
+        print(f'train loss: {train_loss:.4f}, val loss: {val_loss:.4f}, time: {t2 - t1:.4f} seconds')
 
         # save checkpoint
         if val_loss < best_val_loss:
@@ -258,8 +261,8 @@ def main():
                 'val_loss': val_loss,
                 'vocab': vocab
             }
-            # torch.save(checkpoint, os.path.join(checkpoints_dir, 'wap_best.pth'))
-            # print('model saved!')
+            torch.save(checkpoint, os.path.join(checkpoints_dir, 'wap_best.pth'))
+            print('model saved!')
 
     print('training completed!')
 

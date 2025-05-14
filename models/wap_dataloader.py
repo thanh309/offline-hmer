@@ -8,36 +8,37 @@ import cv2
 import numpy as np
 
 
+inp_h = 128
+inp_w = 128 * 8
+
+
 def process_img(filename):
     """
-    Load, resize, apply centered padding, binarize, ensures background is black
+    Load, binarize, ensures background is black, resize and apply centered padding
     """
-
-    inp_h = 128
-    inp_w = 128 * 8
 
     image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
 
-    h, w = image.shape
+    _, bin_img = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    white = np.sum(bin_img == 255)
+    black = np.sum(bin_img == 0)
+    if white > black:
+        bin_img = 255 - bin_img
+
+    h, w = bin_img.shape
     new_w = int((inp_h / h) * w)
 
     if new_w > inp_w:
-        resized_img = cv2.resize(image, (inp_w, inp_h), interpolation=cv2.INTER_AREA)
+        resized_img = cv2.resize(bin_img, (inp_w, inp_h), interpolation=cv2.INTER_AREA)
     else:
-        resized_img = cv2.resize(image, (new_w, inp_h), interpolation=cv2.INTER_AREA)
-        padded_img = np.ones((inp_h, inp_w), dtype=np.uint8) * 255  # white background
+        resized_img = cv2.resize(bin_img, (new_w, inp_h), interpolation=cv2.INTER_AREA)
+        padded_img = np.ones((inp_h, inp_w), dtype=np.uint8) * 0  # black background
         x_offset = (inp_w - new_w) // 2
         padded_img[:, x_offset:x_offset + new_w] = resized_img
         resized_img = padded_img
 
-    _, binary_img = cv2.threshold(resized_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    white = np.sum(binary_img == 255)
-    black = np.sum(binary_img == 0)
-    if white > black:
-        binary_img = 255 - binary_img
-
-    return binary_img
+    return resized_img
 
 
 class HMERDataset(Dataset):

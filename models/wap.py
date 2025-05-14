@@ -105,11 +105,13 @@ class BahdanauAttention(nn.Module):
         att = self.full_att(att).squeeze(2)  
         # [batch_size, num_pixels]
         alpha = F.softmax(att, dim=1)
+        # print('alpha:', alpha.shape)
 
         # calculate attention-weighted context vector by weighting
         # each encoder output feature with the corresponding attention weight
         # [batch_size, encoder_dim]
         context_vector = (encoder_out * alpha.unsqueeze(2)).sum(dim=1)
+        # print('context_vec:', context_vector.shape)
         
         # update coverage vector
         # [batch_size, num_pixels, 1]
@@ -359,25 +361,25 @@ class WAP(nn.Module):
 
         return predictions, alphas
 
-def main():
-
-    vocab_size = 10
-    model = WAP(vocab_size=vocab_size)
-
-    example_image = torch.randn(1, 3, 69, 420)  # Example image
-    predictions, alphas = model.recognize(example_image)
-
-    print(f'Predicted LaTeX sequence: {predictions}')
-    print(len(predictions))
-
-
 # def main():
-#     # testing encoder
-#     my_model = EncoderCNN(256)
-#     example_image = torch.randn(2, 3, 224, 224)
-#     output = my_model.forward(example_image)
-#     print(output)
-#     print(output.shape)
+
+#     vocab_size = 10
+#     model = WAP(vocab_size=vocab_size)
+
+#     example_image = torch.randn(1, 3, 69, 420)  # Example image
+#     predictions, alphas = model.recognize(example_image)
+
+#     print(f'Predicted LaTeX sequence: {predictions}')
+#     print(len(predictions))
+
+
+def main():
+    # testing encoder
+    my_model = EncoderCNN(256)
+    example_image = torch.randn(1, 3, 224, 224)
+    output = my_model.forward(example_image)
+    print(output)
+    print(output.shape)
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ import os
 import torch
 import pandas as pd
 from PIL import Image
+import cv2
 import albumentations as A
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -9,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 import json
 
-from wap_dataloader import Vocabulary, process_img
+from wap_dataloader import Vocabulary, process_img, inp_h, inp_w
 torch.serialization.add_safe_globals([Vocabulary])
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
@@ -80,7 +81,7 @@ def recognize_single_image(model: WAP, image_path, vocab, device, max_length=150
     
     # load and transform image
     image = Image.open(image_path).convert('RGB')
-    image_processed = Image.fromarray(process_img(image_path)).convert('RGB')
+    image_processed = np.array(Image.fromarray(process_img(image_path)).convert('RGB'))
     image_tensor = transform(image=image_processed)['image'].unsqueeze(0).to(device)
     
 
@@ -111,32 +112,54 @@ def recognize_single_image(model: WAP, image_path, vocab, device, max_length=150
     return latex
 
 
-def visualize_attention_maps(orig_image, alphas, latex_tokens):
+def visualize_attention_maps(orig_image, alphas, latex_tokens, max_cols=4):
     '''
-    Visualize attention maps over the original image
+    Visualize attention maps over the original (unpadded) image
     '''
     orig_w, orig_h = orig_image.size
+    ratio = inp_h / inp_w
 
-    # create figure
-    plt.figure(figsize=(15, 15))
     num_tokens = len(latex_tokens)
-    num_rows = int(np.ceil(num_tokens / 4))
+    num_cols = min(max_cols, num_tokens)
+    num_rows = int(np.ceil(num_tokens / num_cols))
+
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(num_cols * 3, int(num_rows * 6 * orig_h / orig_w)))
+    axes = np.array(axes).reshape(-1)
 
     for i, (token, alpha) in enumerate(zip(latex_tokens, alphas)):
-        # reshape and upsample to original size
-        alpha = alpha.view(1, 1, int(np.sqrt(alpha.shape[0])), int(np.sqrt(alpha.shape[0])))
-        alpha = F.interpolate(alpha, size=(orig_h, orig_w), mode='bilinear', align_corners=False)
+        ax = axes[i]
+
+        alpha = alpha.squeeze(0)
+        alpha_len = alpha.shape[0]
+        alpha_w = int(np.sqrt(alpha_len / ratio))
+        alpha_h = int(np.sqrt(alpha_len * ratio))
+
+        # resize to (orig_h, interpolated_w)
+        alpha = alpha.view(1, 1, alpha_h, alpha_w)
+        interp_w = int(orig_h / ratio)
+
+        alpha = F.interpolate(alpha, size=(orig_h, interp_w), mode='bilinear', align_corners=False)
         alpha = alpha.squeeze().cpu().numpy()
 
-        # plot image and attention overlay
-        plt.subplot(num_rows, 4, i + 1)
-        plt.imshow(orig_image)
-        plt.imshow(alpha, cmap='jet', alpha=0.5)
-        plt.title(f'Token: {token}')
-        plt.axis('off')
+        # fix aspect ratio mismatch
+        if interp_w > orig_w:
+            # center crop width
+            start = (interp_w - orig_w) // 2
+            alpha = alpha[:, start:start + orig_w]
+        elif interp_w < orig_w:
+            # stretch to fit width
+            alpha = cv2.resize(alpha, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+
+        ax.imshow(orig_image)
+        ax.imshow(alpha, cmap='jet', alpha=0.4)
+        ax.set_title(f'{token}', fontsize=10 * 8 * orig_h / orig_w)
+        ax.axis('off')
+
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
 
     plt.tight_layout()
-    plt.savefig('attention_maps.png')
+    plt.savefig('attention_maps.png', bbox_inches='tight', dpi=150)
     plt.close()
 
 
@@ -167,7 +190,7 @@ def evaluate_model(model: WAP, test_folder, label_file, vocab, device, max_lengt
     for image_path, gt_latex in tqdm(annotations.items()):
         gt_latex: str = gt_latex
         # image = Image.open(os.path.join(test_folder, image_path)).convert('RGB')
-        processed_img = process_img(os.path.join(test_folder, image_path))
+        processed_img = np.array(Image.fromarray(process_img(os.path.join(test_folder, image_path))).convert('RGB'))
         image_tensor = transform(image=processed_img)['image'].unsqueeze(0).to(device)
         
         with torch.no_grad():
@@ -227,11 +250,13 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
-    checkpoint_path = 'checkpoints/wap_best_01.pth'
+    checkpoint_path = 'checkpoints/wap_best.pth'
     mode = 'single' # 'single' or 'evaluate'
 
     # for single mode
-    image_path = 'resources/CROHME/train/img/65_alfonso.bmp'
+    # image_path = 'resources/CROHME/train/img/formulaire029-equation045.bmp'
+    # image_path = 'resources/CROHME/2019/img/ISICal19_1201_em_750.bmp'
+    image_path = 'resources/CROHME/2019/img/UN19_1007_em_101.bmp'
     visualize = True
 
     # for evaluation mode
