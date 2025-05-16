@@ -10,13 +10,19 @@ import numpy as np
 from tqdm import tqdm
 import json
 
-from wap_dataloader import Vocabulary, process_img, inp_h, inp_w
-torch.serialization.add_safe_globals([Vocabulary])
+try:
+    from .wap_dataloader import Vocabulary, process_img, inp_h, inp_w
+    torch.serialization.add_safe_globals([Vocabulary])
+except:
+    pass
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
 # import model
-from wap import WAP
+try:
+    from .wap import WAP
+except:
+    pass
 
 embed_size = 256
 encoder_dim = 256
@@ -52,7 +58,7 @@ def load_checkpoint(checkpoint_path, device):
     '''
     Load checkpoint and return model and vocabulary
     '''
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     
     vocab = checkpoint['vocab']
     
@@ -69,7 +75,7 @@ def load_checkpoint(checkpoint_path, device):
     
     return model, vocab
 
-def recognize_single_image(model: WAP, image_path, vocab, device, max_length=150, visualize_attention=False):
+def recognize_single_image(model, image_path, vocab, device, max_length=150, visualize_attention=False):
     '''
     Recognize handwritten mathematical expression from a single image
     '''
@@ -81,7 +87,8 @@ def recognize_single_image(model: WAP, image_path, vocab, device, max_length=150
     
     # load and transform image
     image = Image.open(image_path).convert('RGB')
-    image_processed = np.array(Image.fromarray(process_img(image_path)).convert('RGB'))
+    tmp_img, best_crop = process_img(image_path)
+    image_processed = np.array(Image.fromarray(tmp_img).convert('RGB'))
     image_tensor = transform(image=image_processed)['image'].unsqueeze(0).to(device)
     
 
@@ -107,15 +114,16 @@ def recognize_single_image(model: WAP, image_path, vocab, device, max_length=150
     
     # visualize attention
     if visualize_attention:
-        visualize_attention_maps(image, alphas, latex_tokens)
+        visualize_attention_maps(image, alphas, latex_tokens, best_crop)
     
     return latex
 
 
-def visualize_attention_maps(orig_image, alphas, latex_tokens, max_cols=4):
+def visualize_attention_maps(orig_image: Image, alphas, latex_tokens, best_crop, max_cols=4):
     '''
     Visualize attention maps over the original (unpadded) image
     '''
+    orig_image = orig_image.crop(best_crop)
     orig_w, orig_h = orig_image.size
     ratio = inp_h / inp_w
 
@@ -163,7 +171,7 @@ def visualize_attention_maps(orig_image, alphas, latex_tokens, max_cols=4):
     plt.close()
 
 
-def evaluate_model(model: WAP, test_folder, label_file, vocab, device, max_length=150):
+def evaluate_model(model, test_folder, label_file, vocab, device, max_length=150):
     '''
     Evaluate model on test set
     '''
@@ -190,7 +198,8 @@ def evaluate_model(model: WAP, test_folder, label_file, vocab, device, max_lengt
     for image_path, gt_latex in tqdm(annotations.items()):
         gt_latex: str = gt_latex
         # image = Image.open(os.path.join(test_folder, image_path)).convert('RGB')
-        processed_img = np.array(Image.fromarray(process_img(os.path.join(test_folder, image_path))).convert('RGB'))
+        tmp_img, _ = process_img(os.path.join(test_folder, image_path))
+        processed_img = np.array(Image.fromarray(tmp_img).convert('RGB'))
         image_tensor = transform(image=processed_img)['image'].unsqueeze(0).to(device)
         
         with torch.no_grad():
@@ -250,11 +259,13 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
-    checkpoint_path = 'checkpoints/wap_best.pth'
+    checkpoint_path = 'checkpoints/wap_best_0.49.pth'
     mode = 'single' # 'single' or 'evaluate'
 
     # for single mode
+
     image_path = 'resources/CROHMEv2/test/img/UN_125_em_565.bmp'
+    # image_path = 'temp_input_image.png'
     visualize = True
 
     # for evaluation mode
@@ -281,4 +292,7 @@ def main():
         print(f'ExpRate: {exprate}')
 
 if __name__ == '__main__':
+    from wap_dataloader import Vocabulary, process_img, inp_h, inp_w
+    torch.serialization.add_safe_globals([Vocabulary])
+    from wap import WAP
     main()

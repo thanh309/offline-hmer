@@ -144,6 +144,8 @@ def main():
     data_fractions = 1
     assert 0 < data_fractions <= 1, 'invalid data fractions'
 
+    T_0 = 5
+    T_mult = 2
 
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -231,9 +233,6 @@ def main():
     #     factor=0.5,
     #     patience=3
     # )
-
-    T_0 = 5
-    T_mult = 2
 
     scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
         optimizer,

@@ -7,6 +7,118 @@ import pandas as pd
 import cv2
 import numpy as np
 
+def is_effectively_binary(img, threshold_percentage=0.9):
+    dark_pixels = np.sum(img < 20)
+    bright_pixels = np.sum(img > 235)
+    total_pixels = img.size
+    
+    return (dark_pixels + bright_pixels) / total_pixels > threshold_percentage
+
+def before_padding(image):
+    
+    # apply Canny edge detector to find text edges
+    edges = cv2.Canny(image, 50, 150)
+
+    # apply dilation to connect nearby edges
+    kernel = np.ones((7, 13), np.uint8)
+    dilated = cv2.dilate(edges, kernel, iterations=8)
+
+    # find connected components
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(dilated, connectivity=8)
+    
+    # optimize crop rectangle using F1 score
+    # sort components by number of white pixels (excluding background which is label 0)
+    sorted_components = sorted(range(1, num_labels), 
+                             key=lambda i: stats[i, cv2.CC_STAT_AREA], 
+                             reverse=True)
+    
+    # Initialize with empty crop
+    best_f1 = 0
+    best_crop = (0, 0, image.shape[1], image.shape[0])
+    total_white_pixels = np.sum(dilated > 0)
+
+    current_mask = np.zeros_like(dilated)
+    x_min, y_min = image.shape[1], image.shape[0]
+    x_max, y_max = 0, 0
+    
+    for component_idx in sorted_components:
+        # add this component to our mask
+        component_mask = (labels == component_idx)
+        current_mask = np.logical_or(current_mask, component_mask)
+        
+        # update bounding box
+        comp_y, comp_x = np.where(component_mask)
+        if len(comp_x) > 0 and len(comp_y) > 0:
+            x_min = min(x_min, np.min(comp_x))
+            y_min = min(y_min, np.min(comp_y))
+            x_max = max(x_max, np.max(comp_x))
+            y_max = max(y_max, np.max(comp_y))
+        
+        # calculate the current crop
+        width = x_max - x_min + 1
+        height = y_max - y_min + 1
+        crop_area = width * height
+        
+
+        crop_mask = np.zeros_like(dilated)
+        crop_mask[y_min:y_max+1, x_min:x_max+1] = 1
+        white_in_crop = np.sum(np.logical_and(dilated > 0, crop_mask > 0))
+        
+        # calculate F1 score
+        precision = white_in_crop / crop_area
+        recall = white_in_crop / total_white_pixels
+        f1 = 2 * precision * recall / (precision + recall)
+        
+        if f1 > best_f1:
+            best_f1 = f1
+            best_crop = (x_min, y_min, x_max, y_max)
+    
+    # apply the best crop to the original image
+    x_min, y_min, x_max, y_max = best_crop
+    cropped_image = image[y_min:y_max+1, x_min:x_max+1]
+    # cropped_image = cv2.add(cropped_image, 10)
+    # cv2.imwrite('debug_process_img.jpg', cropped_image)
+
+    
+    # apply Gaussian adaptive thresholding
+    if is_effectively_binary(cropped_image):
+        _, thresh = cv2.threshold(cropped_image, 127, 255, cv2.THRESH_BINARY)
+    else:
+        thresh = cv2.adaptiveThreshold(
+            cropped_image, 
+            255, 
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv2.THRESH_BINARY, 
+            11, 
+            2
+        )
+    # cv2.imwrite('debug_process_img.jpg', thresh)
+    
+    # ensure background is black
+    white = np.sum(thresh == 255)
+    black = np.sum(thresh == 0)
+    if white > black:
+        thresh = 255 - thresh
+    
+    # clean up noise using median filter
+    denoised = cv2.medianBlur(thresh, 3)
+    for _ in range(3):
+        denoised = cv2.medianBlur(denoised, 3)
+    # cv2.imwrite('debug_process_img.jpg', denoised)
+
+    # add padding
+    result = cv2.copyMakeBorder(
+        denoised, 
+        5, 
+        5, 
+        5, 
+        5, 
+        cv2.BORDER_CONSTANT, 
+        value=0
+    )
+    
+    return result, best_crop
+
 
 inp_h = 128
 inp_w = 128 * 8
@@ -19,12 +131,7 @@ def process_img(filename):
 
     image = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
 
-    _, bin_img = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    white = np.sum(bin_img == 255)
-    black = np.sum(bin_img == 0)
-    if white > black:
-        bin_img = 255 - bin_img
+    bin_img, best_crop = before_padding(image)
 
     h, w = bin_img.shape
     new_w = int((inp_h / h) * w)
@@ -38,7 +145,10 @@ def process_img(filename):
         padded_img[:, x_offset:x_offset + new_w] = resized_img
         resized_img = padded_img
 
-    return resized_img
+    # debugging only
+    resized_img = cv2.cvtColor(resized_img, cv2.COLOR_GRAY2BGR)
+    # cv2.imwrite('debug_process_img.jpg', resized_img)
+    return resized_img, best_crop
 
 
 class HMERDataset(Dataset):
@@ -89,7 +199,7 @@ class HMERDataset(Dataset):
 
         # load and transform image
         # image = Image.open(os.path.join(self.data_folder, image_path)).convert('RGB')
-        processed_img = process_img(os.path.join(self.data_folder, image_path))
+        processed_img, _ = process_img(os.path.join(self.data_folder, image_path))
         image = np.array(Image.fromarray(processed_img).convert('RGB'))
 
         image = self.transform(image=image)['image']
