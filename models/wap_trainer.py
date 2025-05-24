@@ -310,7 +310,7 @@ def main():
                 'val_loss': val_loss,
                 'vocab': vocab
             }
-            torch.save(checkpoint, os.path.join(checkpoints_dir, 'wap_best.pth'))
+            torch.save(checkpoint, os.path.join(checkpoints_dir, 'wap_custom_best.pth'))
             print('model saved!')
 
     print('training completed!')
