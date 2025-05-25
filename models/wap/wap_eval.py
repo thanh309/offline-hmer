@@ -260,7 +260,7 @@ def main():
     print(f'Using device: {device}')
     
     checkpoint_path = 'checkpoints/wap_best_0.49.pth'
-    mode = 'single' # 'single' or 'evaluate'
+    mode = 'evaluate' # 'single' or 'evaluate'
 
     # for single mode
 

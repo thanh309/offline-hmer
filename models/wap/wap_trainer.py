@@ -141,7 +141,7 @@ def main():
 
     lr = 1e-4
     epochs = 100
-    data_fractions = 1
+    data_fractions = 0.05
     assert 0 < data_fractions <= 1, 'invalid data fractions'
 
     T_0 = 5

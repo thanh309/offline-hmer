@@ -1,4 +1,4 @@
-from models.wap import WAP
+from models.wap.wap import WAP
 import os
 import torch
 from PIL import Image
@@ -7,9 +7,9 @@ import gradio as gr
 from functools import partial
 
 
-from models.wap_dataloader import Vocabulary
+from models.wap.wap_dataloader import Vocabulary
 torch.serialization.add_safe_globals([Vocabulary])
-from models.wap_eval import recognize_single_image as recognize_single_image_wap, load_checkpoint as load_checkpoint_wap
+from models.wap.wap_eval import recognize_single_image as recognize_single_image_wap, load_checkpoint as load_checkpoint_wap
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
