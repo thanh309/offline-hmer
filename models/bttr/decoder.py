@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from .pos_enc import WordPosEnc
-from data.vocab import CROHMEVocab
-from utils.hypothesis import Hypothesis
+from pos_enc import WordPosEnc
+from vocab import CROHMEVocab
+from hypothesis import Hypothesis
 
 vocab = CROHMEVocab()
 vocab_size = len(vocab)

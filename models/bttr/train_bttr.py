@@ -5,12 +5,12 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 # import wandb
 
-from data.dataloader import CROHMEDataset, collate_fn
-from models.bttr.bttr import BTTR
-from utils.losses import ce_loss, to_bi_tgt_out
-from utils.metrics import ExpRateRecorder
-from data.vocab import CROHMEVocab
-from utils.beam_search import beam_search_batch
+from dataloader import CROHMEDataset, collate_fn
+from bttr import BTTR
+from losses import ce_loss, to_bi_tgt_out
+from metrics import ExpRateRecorder
+from vocab import CROHMEVocab
+from beam_search import beam_search_batch
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vocab = CROHMEVocab()

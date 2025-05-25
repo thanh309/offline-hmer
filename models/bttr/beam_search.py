@@ -1,5 +1,5 @@
 import torch
-from utils.hypothesis import Hypothesis
+from hypothesis import Hypothesis
 
 def beam_search_batch(model, imgs, masks, beam_size, max_len, alpha, vocab):
     batch_size = imgs.size(0)

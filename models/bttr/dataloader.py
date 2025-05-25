@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import ToTensor
 
-from .vocab import CROHMEVocab
+from vocab import CROHMEVocab
 
 class CROHMEDataset(Dataset):
     def __init__(self, root_dir: str):

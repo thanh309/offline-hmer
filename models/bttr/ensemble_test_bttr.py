@@ -3,11 +3,11 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from data.dataloader import CROHMEDataset, collate_fn
-from models.bttr.bttr import BTTR
-from utils.metrics import ExpRateRecorder
-from utils.beam_search import ensemble_beam_search_batch
-from data.vocab import CROHMEVocab
+from dataloader import CROHMEDataset, collate_fn
+from bttr import BTTR
+from metrics import ExpRateRecorder
+from beam_search import ensemble_beam_search_batch
+from vocab import CROHMEVocab
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

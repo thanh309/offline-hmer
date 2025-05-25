@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from .pos_enc import ImgPosEnc
+from pos_enc import ImgPosEnc
 
 class _Bottleneck(nn.Module):
     def __init__(self, in_ch, growth_rate, use_dropout):

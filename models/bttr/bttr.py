@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from .encoder import Encoder
-from .decoder import Decoder
+from encoder import Encoder
+from decoder import Decoder
 
 class BTTR(nn.Module):
     def __init__(self, d_model, growth_rate, num_layers, nhead, num_decoder_layers, dim_feedforward, dropout):
