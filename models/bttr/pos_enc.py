@@ -16,7 +16,7 @@ class WordPosEnc(nn.Module):
 
     def forward(self, x):
         _, seq_len, _ = x.size()
-        return x + self.pe[:seq_len, :].unsqueeze(0)
+        return x + self.pe[:seq_len, :].unsqueeze(0) # (batch_size, seq_len, d_model)
 
 class ImgPosEnc(nn.Module):
     def __init__(self, d_model, temperature=10000.0, normalize=False):
@@ -36,7 +36,7 @@ class ImgPosEnc(nn.Module):
             y_embed = y_embed / (y_embed[:, -1:, :] + eps) * 2 * math.pi
             x_embed = x_embed / (x_embed[:, :, -1:] + eps) * 2 * math.pi
 
-        dim_t = torch.arange(self.half_d_model // 2, dtype=torch.float32, device=x.device)
+        dim_t = torch.arange(self.half_d_model // 2, dtype=torch.float32, device=x.device) #Calculate inversed frequency
         inv_freq = 1.0 / (self.temperature ** (dim_t / (self.half_d_model // 2)))
 
         pos_x = torch.einsum('b h w, d -> b h w d', x_embed, inv_freq)

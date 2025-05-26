@@ -14,7 +14,6 @@ from beam_search import beam_search_batch
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vocab = CROHMEVocab()
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # wandb.login(
 #     key = os.getenv("WANDB_KEY"),
 # )
@@ -30,8 +29,8 @@ def main():
     # Configs
     train_root = "resources/CROHME/train"
     val_root = "resources/CROHME/val"
-    batch_size = 8
-    num_epochs = 50
+    batch_size = 32
+    num_epochs = 100
     learning_rate = 1.0
     patience = 10
     checkpoint_dir = "checkpoints"
