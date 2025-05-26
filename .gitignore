@@ -177,3 +177,8 @@ checkpoints/
 wandb/
 
 .env
+
+inference_results/
+
+.attention_maps_wap.png
+attention_maps_wap.png

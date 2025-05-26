@@ -15,6 +15,7 @@ class BTTR(nn.Module):
         mask = torch.cat([mask, mask], dim=0)
         return self.decoder(features, mask, tgt)
 
-    def beam_search(self, img, img_mask, beam_size, max_len):
-        features, mask = self.encoder(img, img_mask)
-        return self.decoder.beam_search(features, mask, beam_size, max_len)
+    def beam_search(self, img, img_mask, beam_size, max_len, alpha, vocab):
+        features, mask, feature_h, feature_w = self.encoder(img, img_mask)
+        seq, attentions, feature_h, feature_w = self.decoder.beam_search(features, mask, beam_size, max_len, alpha, vocab, feature_h, feature_w)
+        return seq, attentions, feature_h, feature_w

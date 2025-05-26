@@ -108,9 +108,11 @@ class Encoder(nn.Module):
     def forward(self, img, mask):
         features, mask = self.densenet(img, mask)
         features = self.feature_proj(features)
+        # Get h and w before flattening
+        b, d, h, w = features.size()
         features = rearrange(features, 'b d h w -> b h w d')
         features = self.norm(features)
         features = self.pos_enc(features, mask)
         features = rearrange(features, 'b h w d -> b (h w) d')
         mask = rearrange(mask, 'b h w -> b (h w)')
-        return features, mask
+        return features, mask, h, w # Return h and w
