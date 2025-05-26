@@ -3,7 +3,7 @@ import random
 from pathlib import Path
 
 
-def merge_and_split_crohme(input_dir, output_dir, train_ratio=0.8, val_ratio=0.1, seed=42):
+def merge_and_split_crohme(input_dir, output_dir, train_ratio=1, val_ratio=0, seed=42):
     random.seed(seed)
 
     data = []
@@ -58,5 +58,5 @@ def merge_and_split_crohme(input_dir, output_dir, train_ratio=0.8, val_ratio=0.1
 
 if __name__ == "__main__":
     input_dir = "resources/CROHME"
-    output_dir = "resources/CROHMEv2"
+    output_dir = "resources/CROHME_eda"
     merge_and_split_crohme(input_dir, output_dir)
