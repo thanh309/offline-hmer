@@ -14,7 +14,7 @@ import json
 import torch.nn.functional as F
 
 from can import CAN, create_can_model
-from can_dataloader import Vocabulary, process_img
+from can_dataloader import Vocabulary, process_img, INPUT_HEIGHT, INPUT_WIDTH
 
 torch.serialization.add_safe_globals([Vocabulary])
 
@@ -32,7 +32,7 @@ MODE = CAN_CONFIG["mode"]  # 'single' or 'evaluate'
 BACKBONE_TYPE = CAN_CONFIG["backbone_type"]
 PRETRAINED_BACKBONE = True if CAN_CONFIG["pretrained_backbone"] == 1 else False
 CHECKPOINT_PATH = f'checkpoints/{BACKBONE_TYPE}_can_best.pth' if PRETRAINED_BACKBONE == False else f'checkpoints/p_{BACKBONE_TYPE}_can_best.pth'
-IMAGE_PATH = f"{CAN_CONFIG["test_folder"]}/{CAN_CONFIG["relative_image_path"]}"
+IMAGE_PATH = f'{CAN_CONFIG["test_folder"]}/{CAN_CONFIG["relative_image_path"]}'
 VISUALIZE = True if CAN_CONFIG["visualize"] == 1 else False
 TEST_FOLDER = CAN_CONFIG["test_folder"]
 LABEL_FILE = CAN_CONFIG["label_file"]
@@ -128,7 +128,7 @@ def recognize_single_image(model,
 
     # Load and transform image
     processed_img, best_crop = process_img(image_path, convert_to_rgb=False)
-
+    orig_image = Image.open(image_path).convert("RGB")
     # Ensure image has the correct format for albumentations
     processed_img = np.expand_dims(processed_img, axis=-1)  # [H, W, 1]
     image_tensor = transform(
@@ -158,13 +158,13 @@ def recognize_single_image(model,
 
     # Visualize attention if requested
     if visualize_attention and attention_weights is not None:
-        visualize_attention_maps(processed_img, attention_weights,
+        visualize_attention_maps(orig_image, attention_weights,
                                  latex_tokens, best_crop)
 
     return latex
 
 
-def visualize_attention_maps(image,
+def visualize_attention_maps(orig_image,
                              attention_weights,
                              latex_tokens,
                              best_crop,
@@ -173,43 +173,48 @@ def visualize_attention_maps(image,
     Visualize attention maps over the image for CAN model
     """
     # Create PIL image from numpy array
-    pil_image = Image.fromarray(image.squeeze())
-
+    orig_image = orig_image.crop(best_crop)
+    orig_w, orig_h = orig_image.size
+    ratio = INPUT_HEIGHT / INPUT_WIDTH
+    
     num_tokens = len(latex_tokens)
     num_cols = min(max_cols, num_tokens)
     num_rows = int(np.ceil(num_tokens / num_cols))
 
     fig, axes = plt.subplots(num_rows,
                              num_cols,
-                             figsize=(num_cols * 3, num_rows * 3))
+                             figsize=(num_cols * 3, int(num_rows * 6 * orig_h / orig_w)))
     axes = np.array(axes).reshape(-1)
-
-    # Infer feature map shape from attention vector length
-    attn_len = attention_weights[0].numel() if len(attention_weights) > 0 else 0
-    if attn_len == 0:
-        print("No attention weights to visualize.")
-        return
-    # Try to find a square or nearly-square shape
-    h = int(np.floor(np.sqrt(attn_len)))
-    while attn_len % h != 0 and h > 1:
-        h -= 1
-    w = attn_len // h
-    h //=5
 
     for i, (token, attn) in enumerate(zip(latex_tokens, attention_weights)):
         ax = axes[i]
-        attn_np = attn[0:1].detach().cpu().numpy().reshape(h, w)
-        # Normalize attention map for visualization
-        attn_np = (attn_np - attn_np.min()) / (attn_np.max() - attn_np.min() + 1e-8)
-        attn_resized = cv2.resize(attn_np, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_CUBIC)
-        # Plot original image
-        ax.imshow(image.squeeze(), cmap='gray')
-        # Overlay attention map
-        ax.imshow(attn_resized, cmap='jet', alpha=0.4)
-        ax.set_title(f'{token}', fontsize=12)
+
+        attn = attn[0:1].squeeze(0)
+        attn_len = attn.shape[0]
+        attn_w = int(np.sqrt(attn_len / ratio))
+        attn_h = int(np.sqrt(attn_len * ratio))
+
+        # resize to (orig_h, interpolated_w)
+        attn = attn.view(1, 1, attn_h, attn_w)
+        interp_w = int(orig_h / ratio)
+
+        attn = F.interpolate(attn, size=(orig_h, interp_w), mode='bilinear', align_corners=False)
+        attn = attn.squeeze().cpu().numpy()
+
+        # fix aspect ratio mismatch
+        if interp_w > orig_w:
+            # center crop width
+            start = (interp_w - orig_w) // 2
+            attn = attn[:, start:start + orig_w]
+        elif interp_w < orig_w:
+            # stretch to fit width
+            attn = cv2.resize(attn, (orig_w, orig_h), interpolation=cv2.INTER_CUBIC)
+
+        ax.imshow(orig_image)
+        ax.imshow(attn, cmap='jet', alpha=0.4)
+        ax.set_title(f'{token}', fontsize=10 * 8 * orig_h / orig_w)
         ax.axis('off')
 
-    # Turn off any unused subplots
     for j in range(i + 1, len(axes)):
         axes[j].axis('off')
 
