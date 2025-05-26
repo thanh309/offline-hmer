@@ -22,7 +22,7 @@
         "visualize": 1,
         "test_folder": "resources/CROHME/test/img",
         "label_file": "resources/CROHME/test/caption.txt",
-        "relative_image_path": "18_em_19.bmp",
-        "mode": "evaluate"
+        "relative_image_path": "127_Frank.bmp",
+        "mode": "single"
     }
 }
