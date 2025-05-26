@@ -259,8 +259,8 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
-    checkpoint_path = 'checkpoints/wap_best_0.49.pth'
-    mode = 'single' # 'single' or 'evaluate'
+    checkpoint_path = 'checkpoints/wap_best.pth'
+    mode = 'evaluate' # 'single' or 'evaluate'
 
     # for single mode
 
