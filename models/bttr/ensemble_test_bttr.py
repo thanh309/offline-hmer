@@ -1,4 +1,5 @@
 import os
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -15,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn.functional as F
 
-#python models/bttr/ensemble_test_bttr.py
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 # def main():
@@ -36,8 +37,8 @@ import torch.nn.functional as F
 #     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=collate_fn)
 
 #     # Load model
-#     model = BTTR(d_model=256, growth_rate=16, num_layers=3, nhead=8, num_decoder_layers=3, dim_feedforward=1024, dropout=0.3).to("cpu")
-#     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+#     model = BTTR(d_model=256, growth_rate=16, num_layers=3, nhead=8, num_decoder_layers=3, dim_feedforward=1024, dropout=0.3).to(device)
+#     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 #     model.load_state_dict(checkpoint['model'])
 #     model.eval()
 
@@ -46,7 +47,7 @@ import torch.nn.functional as F
 #         for i, (fnames, imgs, masks, formulas) in enumerate(tqdm(test_loader, desc="Inference")):
 #             if i >= 5:
 #                 break
-#             imgs, masks = imgs.to("cpu"), masks.to("cpu")
+#             imgs, masks = imgs.to(device), masks.to(device)
 
 #             hypotheses, batch_attention_weights, batch_feature_h, batch_feature_w = beam_search_batch(model, imgs, masks, beam_size=beam_size, max_len=max_len, alpha=1.0, vocab=vocab)
 #             pred_seq = hypotheses[0]
@@ -108,12 +109,12 @@ def main():
     # Load image
     from torchvision.transforms import ToTensor
     img = Image.open(image_path).convert("L")
-    img_tensor = ToTensor()(img).unsqueeze(0)  # shape: [1, 1, H, W]
-    mask = torch.zeros_like(img_tensor[:, 0], dtype=torch.bool)  # no padding
+    img_tensor = ToTensor()(img).unsqueeze(0).to(device)  # shape: [1, 1, H, W]
+    mask = torch.zeros_like(img_tensor[:, 0], dtype=torch.bool).to(device)  # no padding
 
     # Load model
-    model = BTTR(d_model=256, growth_rate=16, num_layers=3, nhead=8, num_decoder_layers=3, dim_feedforward=1024, dropout=0.3).to("cpu")
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    model = BTTR(d_model=256, growth_rate=16, num_layers=3, nhead=8, num_decoder_layers=3, dim_feedforward=1024, dropout=0.3).to(device)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['model'])
     model.eval()
 
