@@ -102,7 +102,7 @@ def before_padding(image):
     
     # clean up noise using median filter
     denoised = cv2.medianBlur(thresh, 3)
-    for _ in range(3):
+    for _ in range(7):
         denoised = cv2.medianBlur(denoised, 3)
     # cv2.imwrite('debug_process_img.jpg', denoised)
 

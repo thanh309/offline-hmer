@@ -260,12 +260,12 @@ def main():
     print(f'Using device: {device}')
     
     checkpoint_path = 'checkpoints/wap_best_0.49.pth'
-    mode = 'evaluate' # 'single' or 'evaluate'
+    mode = 'single' # 'single' or 'evaluate'
 
     # for single mode
 
-    image_path = 'resources/CROHMEv2/test/img/UN_125_em_565.bmp'
-    # image_path = 'temp_input_image.png'
+    # image_path = 'resources/CROHMEv2/test/img/UN_125_em_565.bmp'
+    image_path = 'real_img.png'
     visualize = True
 
     # for evaluation mode
