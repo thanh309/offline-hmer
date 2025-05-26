@@ -7,8 +7,8 @@ import torchvision.models as models
 class CustomEncoderCNN(nn.Module):
     """
     Custom CNN encoder based on the architecture description:
-    ME Images (h×w×d) -> FCN output (H×W×D)
-    Architecture: 4×conv3-32 -> maxpool -> 4×conv3-64 -> maxpool -> 4×conv3-128 -> maxpool -> FCN output
+    ME Images (hxwxd) -> FCN output (HxWxD)
+    Architecture: 4xconv3-32 -> maxpool -> 4xconv3-64 -> maxpool -> 4xconv3-128 -> maxpool -> FCN output
     """
     def __init__(self, enc_hidden_size=256, input_channels=3):
         super(CustomEncoderCNN, self).__init__()

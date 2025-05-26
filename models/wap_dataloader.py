@@ -104,7 +104,7 @@ def before_padding(image):
     denoised = cv2.medianBlur(thresh, 3)
     for _ in range(3):
         denoised = cv2.medianBlur(denoised, 3)
-    # cv2.imwrite('debug_process_img.jpg', denoised)
+    cv2.imwrite('debug_process_img.jpg', denoised)
 
     # add padding
     result = cv2.copyMakeBorder(
