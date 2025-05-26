@@ -21,13 +21,17 @@ user_secrets = UserSecretsClient()
 my_secret = user_secrets.get_secret("wandb_api_key") 
 wandb.login(key=my_secret)
 
-inp_h = 128
-inp_w = 128 * 8
+def is_effectively_binary(img, threshold_percentage=0.9):
+    dark_pixels = np.sum(img < 20)
+    bright_pixels = np.sum(img > 235)
+    total_pixels = img.size
+    
+    return (dark_pixels + bright_pixels) / total_pixels > threshold_percentage
 
 def before_padding(image):
     
     # apply Canny edge detector to find text edges
-    edges = cv2.Canny(image, 50, 75)
+    edges = cv2.Canny(image, 50, 150)
 
     # apply dilation to connect nearby edges
     kernel = np.ones((7, 13), np.uint8)
@@ -86,18 +90,22 @@ def before_padding(image):
     # apply the best crop to the original image
     x_min, y_min, x_max, y_max = best_crop
     cropped_image = image[y_min:y_max+1, x_min:x_max+1]
+    # cropped_image = cv2.add(cropped_image, 10)
+    # cv2.imwrite('debug_process_img.jpg', cropped_image)
 
     
     # apply Gaussian adaptive thresholding
-    thresh = cv2.adaptiveThreshold(
-        # filtered,
-        cropped_image, 
-        255, 
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-        cv2.THRESH_BINARY, 
-        11, 
-        2
-    )
+    if is_effectively_binary(cropped_image):
+        _, thresh = cv2.threshold(cropped_image, 127, 255, cv2.THRESH_BINARY)
+    else:
+        thresh = cv2.adaptiveThreshold(
+            cropped_image, 
+            255, 
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv2.THRESH_BINARY, 
+            11, 
+            2
+        )
     # cv2.imwrite('debug_process_img.jpg', thresh)
     
     # ensure background is black
@@ -107,9 +115,9 @@ def before_padding(image):
         thresh = 255 - thresh
     
     # clean up noise using median filter
-    denoised = cv2.medianBlur(thresh, 5)
-    for _ in range(5):
-        denoised = cv2.medianBlur(denoised, 5)
+    denoised = cv2.medianBlur(thresh, 3)
+    for _ in range(3):
+        denoised = cv2.medianBlur(denoised, 3)
     # cv2.imwrite('debug_process_img.jpg', denoised)
 
     # add padding
