@@ -175,16 +175,10 @@ def before_padding(image):
     black = np.sum(thresh == 0)
     if white > black:
         thresh = 255 - thresh
-    
-    # clean up noise using median filter
-    denoised = cv2.medianBlur(thresh, 3)
-    for _ in range(3):
-        denoised = cv2.medianBlur(denoised, 3)
-    # cv2.imwrite('debug_process_img.jpg', denoised)
 
     # add padding
     result = cv2.copyMakeBorder(
-        denoised, 
+        thresh, 
         5, 
         5, 
         5, 
@@ -196,8 +190,8 @@ def before_padding(image):
     return result, best_crop
 
 
-inp_h = 128
-inp_w = 128 * 8
+inp_h = 256
+inp_w = 256 * 8
 
 
 def process_img(filename):
