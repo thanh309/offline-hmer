@@ -10,6 +10,8 @@ import numpy as np
 from tqdm import tqdm
 import json
 
+type_ = 'normal'
+    
 try:
     from .wap_dataloader import Vocabulary, process_img, inp_h, inp_w
     torch.serialization.add_safe_globals([Vocabulary])
@@ -31,6 +33,17 @@ attention_dim = 256
 dropout = 0.5
 grad_clip = 5.0
 lbd = 0.5
+
+def filter_formula(formula_tokens, mode):
+    if mode == "frac":
+        return "\\frac" in formula_tokens
+    elif mode == "sum_or_lim":
+        return "\\sum" in formula_tokens or "\\limit" in formula_tokens
+    elif mode == "long_expr":
+        return len(formula_tokens) >= 30
+    elif mode == "short_expr":
+        return len(formula_tokens) <= 10
+    return True
 
 def levenshtein_distance(lst1, lst2):
     m = len(lst1)
@@ -194,9 +207,11 @@ def evaluate_model(model, test_folder, label_file, vocab, device, max_length=150
     ])
     
     results = {}
-    
     for image_path, gt_latex in tqdm(annotations.items()):
         gt_latex: str = gt_latex
+        if not filter_formula(gt_latex.split(), type_):
+            continue 
+        
         # image = Image.open(os.path.join(test_folder, image_path)).convert('RGB')
         tmp_img, _ = process_img(os.path.join(test_folder, image_path))
         processed_img = np.array(Image.fromarray(tmp_img).convert('RGB'))
@@ -289,6 +304,7 @@ def main():
 
         exprate, results = evaluate_model(model, test_folder, label_file, vocab, device)
         
+        print(f"Evaluate for {type_} type:")
         print(f'ExpRate: {exprate}')
 
 if __name__ == '__main__':
